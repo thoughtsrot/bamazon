@@ -54,7 +54,7 @@ const mainMenu = () => {
           break;
 
         case "all products":
-          allSearch();
+          browseAll();
           break;
 
       }
@@ -88,12 +88,22 @@ const deptSearch = () => {
 
               prodByDept.forEach((product) => {
 
-                console.log(`
+                if (product.stock_qty < 1) {
+                  console.log(`
           Product: ${product.product_name}
           Price: $${product.price}
-          Quantity Remaining: ${product.stock_qty}
+          **ITEM OUT OF STOCK!** Check back soon.
           Item #: ${product.item_id}
         `)
+                } else {
+                  console.log(`
+                  Product: ${product.product_name}
+                  Price: $${product.price}
+                  Quantity Remaining: ${product.stock_qty}
+                  Item #: ${product.item_id}
+                  `)
+                }
+
               });
 
 
@@ -110,16 +120,66 @@ const deptSearch = () => {
 // function to search for item by user input
 const itemSearch = () => {
 
+  inquirer.prompt([
+    {
+      name: "searchInput",
+      type: "input",
+      message: "What item are you looking for?",
+    }
+  ]).then(userResponse => {
+
+    console.log(`
+    *****NOW VIEWING ALL PRODUCTS RELATED TO "${userResponse.searchInput}"*****`)
+
+    const query = db.query("SELECT * FROM products WHERE product_name LIKE ?", [`%${userResponse.searchInput}%`], (err, prodBySearch) => {
+
+      if (err) throw err;
+
+      prodBySearch.forEach(product => {
+        console.log(`
+        Product: ${product.product_name}
+        Price: $${product.price}
+        Quantity Remaining: ${product.stock_qty}
+        Item #: ${product.item_id}
+        `);
+      });
+
+      selectItem();
+    });
+
+  });
+
 }
 
-const allSearch = () => {
+const browseAll = () => {
+
+  db.query("SELECT * FROM products", (err, prodData) => {
+
+    console.log(`
+    *******NOW VIEWING ALL PRODUCTS*******`)
+
+
+    if (err) throw err;
+
+    prodData.forEach(product => {
+      console.log(`
+      Product: ${product.product_name}
+      Price: $${product.price}
+      Quantity Remaining: ${product.stock_qty}
+      Item #: ${product.item_id}
+      `);
+
+    });
+
+    selectItem();
+  });
 
 }
 
 // function for choosing a specific item by item #
 const selectItem = () => {
 
-  const query = db.query("SELECT item_id FROM products",
+  const query = db.query("SELECT * FROM products",
     (err, prodData) => {
       if (err) throw err;
 
@@ -146,7 +206,7 @@ const selectItem = () => {
           //     Sorry.
 
           //     We couldn't locate that item.
-              
+
           //     Please enter the item # exactly as it appears in the description.`);
 
           //     return false;
@@ -173,32 +233,39 @@ const selectItem = () => {
           }
         }
       ]).then(user => {
+
+        console.log(prodData.stock_qty);
+        console.log(user.qtyChoice);
+
+
         // define if conditional to check if user qty is less than or equal to current product qty
         if (user.qtyChoice <= prodData.stock_qty) {
 
           console.log(`
         You are about to purchase ${user.qtyChoice} of the following item:`);
 
-        const query = db.query("SELECT * FROM products WHERE item_id = ?",
-          [user.itemChoice], (err, prodById) => {
+          const query = db.query("SELECT * FROM products WHERE item_id = ?",
+            [user.itemChoice], (err, prodById) => {
 
-            if (err) throw err;
+              if (err) throw err;
 
-            prodById.forEach((product) => {
+              prodById.forEach((product) => {
 
-              console.log(`Product: ${product.product_name}
+                console.log(`Product: ${product.product_name}
       @ $${product.price} each.
     `)
+              });
+
+              // confirmSale();
+
             });
-
-            // confirmSale();
-
-          });
 
         } else {
 
           console.log(`
           There is insufficient quantity in stock. Please check available quantities and try again`)
+
+          selectItem();
         }
 
 
