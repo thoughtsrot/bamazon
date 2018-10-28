@@ -88,13 +88,16 @@ const deptSearch = () => {
 
               prodByDept.forEach((product) => {
 
+                console.log(product.stock_qty)
+
                 if (product.stock_qty < 1) {
                   console.log(`
-          Product: ${product.product_name}
-          Price: $${product.price}
-          **ITEM OUT OF STOCK!** Check back soon.
-          Item #: ${product.item_id}
-        `)
+                Product: ${product.product_name}
+                Price: $${product.price}
+                **ITEM OUT OF STOCK!** Check back soon.
+                Item #: ${product.item_id}
+        `);
+
                 } else {
                   console.log(`
                   Product: ${product.product_name}
@@ -105,8 +108,6 @@ const deptSearch = () => {
                 }
 
               });
-
-
 
             });
 
@@ -136,12 +137,23 @@ const itemSearch = () => {
       if (err) throw err;
 
       prodBySearch.forEach(product => {
-        console.log(`
-        Product: ${product.product_name}
-        Price: $${product.price}
-        Quantity Remaining: ${product.stock_qty}
-        Item #: ${product.item_id}
-        `);
+        if (product.stock_qty < 1) {
+          console.log(`
+  Product: ${product.product_name}
+  Price: $${product.price}
+  **ITEM OUT OF STOCK!** Check back soon.
+  Item #: ${product.item_id}
+`);
+
+
+        } else {
+          console.log(`
+          Product: ${product.product_name}
+          Price: $${product.price}
+          Quantity Remaining: ${product.stock_qty}
+          Item #: ${product.item_id}
+          `)
+        }
       });
 
       selectItem();
@@ -162,25 +174,38 @@ const browseAll = () => {
     if (err) throw err;
 
     prodData.forEach(product => {
-      console.log(`
+
+      if (product.stock_qty < 1) {
+        console.log(`
       Product: ${product.product_name}
       Price: $${product.price}
-      Quantity Remaining: ${product.stock_qty}
+      **ITEM OUT OF STOCK!** Check back soon.
       Item #: ${product.item_id}
-      `);
+`);
+
+
+      } else {
+        console.log(`
+        Product: ${product.product_name}
+        Price: $${product.price}
+        Quantity Remaining: ${product.stock_qty}
+        Item #: ${product.item_id}
+        `)
+      }
 
     });
 
-    selectItem();
-  });
+  })
+
+  selectItem();
 
 }
 
 // function for choosing a specific item by item #
 const selectItem = () => {
 
-  const query = db.query("SELECT * FROM products",
-    (err, prodData) => {
+  db.query("SELECT * FROM products",
+    (err, prodSelect) => {
       if (err) throw err;
 
       // ask for item #
@@ -189,30 +214,7 @@ const selectItem = () => {
           name: "itemChoice",
           type: "input",
           message: "Please enter the item # of the product you wish to purchase",
-          // validate: (itemInput) => {
 
-          //   const idArray = prodByDept.map(item => item.item_id);
-
-          //   console.log(`
-          //   Array: ${idArray}`)
-
-          //   if (idArray.includes(itemInput)) {
-
-          //     return true;
-
-          //   } else {
-
-          //     console.log(`
-          //     Sorry.
-
-          //     We couldn't locate that item.
-
-          //     Please enter the item # exactly as it appears in the description.`);
-
-          //     return false;
-          //   }
-
-          // }
         },
         // ask for qty
         {
@@ -231,51 +233,147 @@ const selectItem = () => {
             }
 
           }
-        }
+        },
+        {
+          name: "howPay",
+          type: "list",
+          message: "How would you like to pay today? Use your...",
+          choices: ["saved card", "BamPay account"]
+        },
+        {
+          name: "howShip",
+          type: "list",
+          message: "How fast do you need it?",
+          choices: ["today!", "tomorrow", "in a few days", "in 5 to 7 days"]
+        },
       ]).then(user => {
 
-        console.log(prodData.stock_qty);
-        console.log(user.qtyChoice);
+        let qtyUpdate;
+
+        prodSelect.forEach(item => {
+
+          console.log(item.item_id, user.itemChoice);
+          console.log(item.stock_qty, user.qtyChoice);
+
+          if (item.item_id == user.itemChoice
+            && item.stock_qty >= user.qtyChoice) {
+
+            qtyUpdate = item.stock_qty - user.qtyChoice;
+
+          } else {
+
+            qtyUpdate = item.stock_qty;
+          }
+        })
+
+        console.log(qtyUpdate)
 
 
-        // define if conditional to check if user qty is less than or equal to current product qty
-        if (user.qtyChoice <= prodData.stock_qty) {
+        db.query("UPDATE products SET ? WHERE ?",
+        [
+          {
+            stock_qty: qtyUpdate
+          },
+          {
+            item_id: user.itemChoice
+          }
+        ],
+        (err) => {
 
-          console.log(`
-        You are about to purchase ${user.qtyChoice} of the following item:`);
+          if (err) throw err;
 
-          const query = db.query("SELECT * FROM products WHERE item_id = ?",
-            [user.itemChoice], (err, prodById) => {
+        });
 
-              if (err) throw err;
 
-              prodById.forEach((product) => {
 
-                console.log(`Product: ${product.product_name}
-      @ $${product.price} each.
-    `)
-              });
+        db.query("SELECT * FROM products WHERE item_id = ?", [user.itemChoice], (err, selectedItem) => {
 
-              // confirmSale();
+          if (err) throw err;
 
-            });
 
-        } else {
+          selectedItem.forEach(item => {
 
-          console.log(`
+            if (user.qtyChoice <= item.stock_qty) {
+              console.log(`
+        You ordered ${user.qtyChoice} ${item.product_name} @ $${item.price} scheduled to be delivered ${user.howShip}. Your ${user.howPay} will be charged`);
+
+              confirmSale();
+
+            } else {
+
+              console.log(`
           There is insufficient quantity in stock. Please check available quantities and try again`)
 
-          selectItem();
-        }
+              continueShop();
+            }
 
+          })
 
-      })
+        });
 
-      // Close db.query here
+      });
+
     });
+
 }
 
-// function to confirm sale/payment method/shipment method of item
-// const confirmSale = () => {
+// function to confirm purchase
+const confirmSale = () => {
 
-// }
+  inquirer.prompt([
+
+    {
+      name: "confirmPurchase",
+      type: "confirm",
+      message: "Please confirm.",
+      default: "Y"
+    }
+  ]).then(user => {
+
+    if (user.confirmPurchase) {
+
+      console.log("Your order is on its way! Continue shopping?");
+
+      continueShop();
+
+    } else {
+
+      console.log("Your order was cancelled and you have not been charged. Continue shopping?");
+
+      continueShop();
+
+    }
+
+
+
+
+  })
+
+}
+
+const continueShop = () => {
+
+  inquirer.prompt([
+
+    {
+      name: "continue",
+      type: "confirm",
+      message: "Choose Y to continue.",
+      default: "Yes"
+    }
+  ]).then(user => {
+
+    if (user.continue) {
+
+      mainMenu();
+
+    } else {
+
+      console.log("Thank you for shopping with Bamazon! Come again soon.");
+
+      db.end();
+    }
+
+  });
+
+}
